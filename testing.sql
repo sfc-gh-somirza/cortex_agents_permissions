@@ -72,13 +72,19 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA DEV_DB.PUBLIC TO RO
 GRANT ROLE TEST_ROLE_DEV_ONLY TO USER SOMIRZA;
 
 -- -----------------------------------------------------------------------------
--- 1.4 Create V2 Procedures (Owned by TEST_ROLE)
+-- 1.4 Create Procedures (Owned by TEST_ROLE)
 -- -----------------------------------------------------------------------------
 
+-- First drop any existing procedures (may be owned by different role)
+USE ROLE ACCOUNTADMIN;
+DROP PROCEDURE IF EXISTS DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS(STRING, INT, FLOAT);
+DROP PROCEDURE IF EXISTS DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS(STRING, INT, FLOAT);
+
+-- Now create as TEST_ROLE
 USE ROLE TEST_ROLE;
 USE SECONDARY ROLES NONE;
 
-CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2(
+CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS(
     TARGET_DB STRING,
     ID_TO_UPDATE INT,
     NEW_VALUE FLOAT
@@ -101,12 +107,12 @@ def main(session: snowpark.Session, target_db: str, id_to_update: int, new_value
                       UPDATED_BY = CURRENT_USER() 
                   WHERE ID = {id_to_update}"""
         session.sql(sql).collect()
-        return f"SUCCESS: Updated ID {id_to_update} in {target_db}.PUBLIC.TEST_TABLE to value {new_value} (Caller Rights V2 - owner: TEST_ROLE)"
+        return f"SUCCESS: Updated ID {id_to_update} in {target_db}.PUBLIC.TEST_TABLE to value {new_value} (Caller Rights - owner: TEST_ROLE)"
     except Exception as e:
-        return f"ERROR: {str(e)} (Caller Rights V2 - owner: TEST_ROLE)"
+        return f"ERROR: {str(e)} (Caller Rights - owner: TEST_ROLE)"
 ';
 
-CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2(
+CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS(
     TARGET_DB STRING,
     ID_TO_UPDATE INT,
     NEW_VALUE FLOAT
@@ -126,25 +132,25 @@ def main(session: snowpark.Session, target_db: str, id_to_update: int, new_value
         sql = f"""UPDATE {target_db}.PUBLIC.TEST_TABLE 
                   SET VALUE = {new_value}, 
                       UPDATED_AT = CURRENT_TIMESTAMP(), 
-                      UPDATED_BY = ''OWNER_RIGHTS_V2_PROC'' 
+                      UPDATED_BY = ''OWNER_RIGHTS_PROC'' 
                   WHERE ID = {id_to_update}"""
         session.sql(sql).collect()
-        return f"SUCCESS: Updated ID {id_to_update} in {target_db}.PUBLIC.TEST_TABLE to value {new_value} (Owner Rights V2 - owner: TEST_ROLE)"
+        return f"SUCCESS: Updated ID {id_to_update} in {target_db}.PUBLIC.TEST_TABLE to value {new_value} (Owner Rights - owner: TEST_ROLE)"
     except Exception as e:
-        return f"ERROR: {str(e)} (Owner Rights V2 - owner: TEST_ROLE)"
+        return f"ERROR: {str(e)} (Owner Rights - owner: TEST_ROLE)"
 ';
 
-GRANT USAGE ON PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2(STRING, INT, FLOAT) TO ROLE TEST_ROLE_DEV_ONLY;
-GRANT USAGE ON PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2(STRING, INT, FLOAT) TO ROLE TEST_ROLE_DEV_ONLY;
+GRANT USAGE ON PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS(STRING, INT, FLOAT) TO ROLE TEST_ROLE_DEV_ONLY;
+GRANT USAGE ON PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS(STRING, INT, FLOAT) TO ROLE TEST_ROLE_DEV_ONLY;
 
 -- -----------------------------------------------------------------------------
--- 1.5 Create Agent (Owned by ACCOUNTADMIN, uses V2 procedures)
+-- 1.5 Create Agent (uses procedures owned by TEST_ROLE)
 -- -----------------------------------------------------------------------------
 
 USE ROLE ACCOUNTADMIN;
 
 CREATE OR REPLACE AGENT DEV_DB.PUBLIC.RIGHTS_TEST_AGENT
-  COMMENT = 'Agent to demonstrate caller rights vs owner rights stored procedures (V2 - procedures owned by TEST_ROLE)'
+  COMMENT = 'Agent to demonstrate caller rights vs owner rights stored procedures (procedures owned by TEST_ROLE)'
   FROM SPECIFICATION $$
 {
   "models": {
@@ -209,7 +215,7 @@ CREATE OR REPLACE AGENT DEV_DB.PUBLIC.RIGHTS_TEST_AGENT
   "tool_resources": {
     "update_caller_rights": {
       "type": "procedure",
-      "identifier": "DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2",
+      "identifier": "DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS",
       "execution_environment": {
         "type": "warehouse",
         "warehouse": "COMPUTE_WH",
@@ -218,7 +224,7 @@ CREATE OR REPLACE AGENT DEV_DB.PUBLIC.RIGHTS_TEST_AGENT
     },
     "update_owner_rights": {
       "type": "procedure",
-      "identifier": "DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2",
+      "identifier": "DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS",
       "execution_environment": {
         "type": "warehouse",
         "warehouse": "COMPUTE_WH",
@@ -241,7 +247,7 @@ SELECT 'SETUP COMPLETE' as STATUS;
 SELECT '=== PROCEDURE OWNERSHIP ===' as INFO;
 SELECT PROCEDURE_NAME, PROCEDURE_OWNER 
 FROM DEV_DB.INFORMATION_SCHEMA.PROCEDURES 
-WHERE PROCEDURE_NAME LIKE '%V2';
+WHERE PROCEDURE_NAME LIKE 'UPDATE_TABLE%';
 
 SELECT '=== ROLE PERMISSIONS SUMMARY ===' as INFO;
 SELECT 'TEST_ROLE' as ROLE, 'DEV_DB' as DATABASE, 'SELECT,INSERT,UPDATE,DELETE' as PRIVILEGES
@@ -282,19 +288,19 @@ USE SECONDARY ROLES NONE;
 
 SELECT 'TEST 1: Caller Rights + DEV_DB' as TEST;
 SELECT 'Expected: SUCCESS (caller has UPDATE on DEV_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2('DEV_DB', 1, 111.11);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS('DEV_DB', 1, 111.11);
 
 SELECT 'TEST 2: Caller Rights + PROD_DB' as TEST;
 SELECT 'Expected: FAIL (caller only has SELECT on PROD_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2('PROD_DB', 1, 222.22);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS('PROD_DB', 1, 222.22);
 
 SELECT 'TEST 3: Owner Rights + DEV_DB' as TEST;
 SELECT 'Expected: SUCCESS (owner TEST_ROLE has UPDATE on DEV_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2('DEV_DB', 1, 333.33);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS('DEV_DB', 1, 333.33);
 
 SELECT 'TEST 4: Owner Rights + PROD_DB' as TEST;
 SELECT 'Expected: FAIL (owner TEST_ROLE only has SELECT on PROD_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2('PROD_DB', 1, 444.44);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS('PROD_DB', 1, 444.44);
 
 -- -----------------------------------------------------------------------------
 -- 3.2 TEST_ROLE_DEV_ONLY Tests (Full DEV_DB access, NO PROD_DB access)
@@ -310,19 +316,19 @@ USE SECONDARY ROLES NONE;
 
 SELECT 'TEST 5: Caller Rights + DEV_DB' as TEST;
 SELECT 'Expected: SUCCESS (caller has UPDATE on DEV_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2('DEV_DB', 2, 555.55);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS('DEV_DB', 2, 555.55);
 
 SELECT 'TEST 6: Caller Rights + PROD_DB' as TEST;
 SELECT 'Expected: FAIL (caller has NO access to PROD_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2('PROD_DB', 2, 666.66);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS('PROD_DB', 2, 666.66);
 
 SELECT 'TEST 7: Owner Rights + DEV_DB' as TEST;
 SELECT 'Expected: SUCCESS (owner TEST_ROLE has UPDATE on DEV_DB)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2('DEV_DB', 2, 777.77);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS('DEV_DB', 2, 777.77);
 
 SELECT 'TEST 8: Owner Rights + PROD_DB' as TEST;
 SELECT 'Expected: FAIL (owner TEST_ROLE only has SELECT - NO PRIVILEGE ESCALATION)' as EXPECTED;
-CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2('PROD_DB', 2, 888.88);
+CALL DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS('PROD_DB', 2, 888.88);
 
 -- -----------------------------------------------------------------------------
 -- 3.3 Final State

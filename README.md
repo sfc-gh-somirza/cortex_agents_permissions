@@ -99,13 +99,13 @@ By creating procedures with a **least-privileged role** (TEST_ROLE) as the owner
 
 ---
 
-## Stored Procedures (V2 - Owned by TEST_ROLE)
+## Stored Procedures (Owned by TEST_ROLE)
 
-### UPDATE_TABLE_CALLER_RIGHTS_V2
+### UPDATE_TABLE_CALLER_RIGHTS
 
 | Property | Value |
 |----------|-------|
-| **Full Name** | `DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2(VARCHAR, NUMBER, FLOAT)` |
+| **Full Name** | `DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS(VARCHAR, NUMBER, FLOAT)` |
 | **Owner** | **TEST_ROLE** |
 | **Execution Mode** | `EXECUTE AS CALLER` |
 | **Language** | Python |
@@ -114,11 +114,11 @@ By creating procedures with a **least-privileged role** (TEST_ROLE) as the owner
 
 **Security Behavior:** If the caller lacks UPDATE privilege on the target table, the operation **fails**.
 
-### UPDATE_TABLE_OWNER_RIGHTS_V2
+### UPDATE_TABLE_OWNER_RIGHTS
 
 | Property | Value |
 |----------|-------|
-| **Full Name** | `DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2(VARCHAR, NUMBER, FLOAT)` |
+| **Full Name** | `DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS(VARCHAR, NUMBER, FLOAT)` |
 | **Owner** | **TEST_ROLE** |
 | **Execution Mode** | `EXECUTE AS OWNER` |
 | **Language** | Python |
@@ -135,15 +135,15 @@ By creating procedures with a **least-privileged role** (TEST_ROLE) as the owner
 | ID_TO_UPDATE | NUMBER | Record ID to update (1, 2, or 3) |
 | NEW_VALUE | FLOAT | New value to set |
 
-### Why V2 Procedures?
+### Why TEST_ROLE Ownership?
 
-The V2 procedures were created **while using TEST_ROLE**, making TEST_ROLE the owner:
+The procedures were created **while using TEST_ROLE**, making TEST_ROLE the owner:
 
 ```sql
 USE ROLE TEST_ROLE;
 USE SECONDARY ROLES NONE;
-CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS_V2(...)
-CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS_V2(...)
+CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_CALLER_RIGHTS(...)
+CREATE OR REPLACE PROCEDURE DEV_DB.PUBLIC.UPDATE_TABLE_OWNER_RIGHTS(...)
 ```
 
 This ensures owner's rights cannot exceed TEST_ROLE's permissions.
@@ -158,14 +158,14 @@ Eight tests were performed across two roles and two procedure types:
 
 | Test # | Role | Procedure | Target DB | Purpose |
 |--------|------|-----------|-----------|---------|
-| 1 | TEST_ROLE | Caller Rights V2 | DEV_DB | Verify caller can update where they have privileges |
-| 2 | TEST_ROLE | Caller Rights V2 | PROD_DB | Verify caller cannot update where they lack UPDATE |
-| 3 | TEST_ROLE | Owner Rights V2 | DEV_DB | Verify owner rights works on accessible data |
-| 4 | TEST_ROLE | Owner Rights V2 | PROD_DB | **Verify NO privilege escalation** |
-| 5 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | DEV_DB | Verify caller can update where they have privileges |
-| 6 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | PROD_DB | Verify caller cannot update with no access |
-| 7 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | DEV_DB | Verify owner rights works on accessible data |
-| 8 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | PROD_DB | **Verify NO privilege escalation** |
+| 1 | TEST_ROLE | Caller Rights | DEV_DB | Verify caller can update where they have privileges |
+| 2 | TEST_ROLE | Caller Rights | PROD_DB | Verify caller cannot update where they lack UPDATE |
+| 3 | TEST_ROLE | Owner Rights | DEV_DB | Verify owner rights works on accessible data |
+| 4 | TEST_ROLE | Owner Rights | PROD_DB | **Verify NO privilege escalation** |
+| 5 | TEST_ROLE_DEV_ONLY | Caller Rights | DEV_DB | Verify caller can update where they have privileges |
+| 6 | TEST_ROLE_DEV_ONLY | Caller Rights | PROD_DB | Verify caller cannot update with no access |
+| 7 | TEST_ROLE_DEV_ONLY | Owner Rights | DEV_DB | Verify owner rights works on accessible data |
+| 8 | TEST_ROLE_DEV_ONLY | Owner Rights | PROD_DB | **Verify NO privilege escalation** |
 
 ### Test Setup
 
@@ -180,18 +180,18 @@ USE WAREHOUSE COMPUTE_WH;
 
 ## Expected Outputs
 
-### With TEST_ROLE-Owned V2 Procedures
+### With TEST_ROLE-Owned Procedures
 
 | Test # | Role | Procedure | Target | Expected | Reason |
 |--------|------|-----------|--------|----------|--------|
-| 1 | TEST_ROLE | Caller Rights V2 | DEV_DB | SUCCESS | Caller has UPDATE on DEV_DB |
-| 2 | TEST_ROLE | Caller Rights V2 | PROD_DB | FAIL | Caller only has SELECT on PROD_DB |
-| 3 | TEST_ROLE | Owner Rights V2 | DEV_DB | SUCCESS | Owner (TEST_ROLE) has UPDATE on DEV_DB |
-| 4 | TEST_ROLE | Owner Rights V2 | PROD_DB | **FAIL** ✓ | Owner (TEST_ROLE) only has SELECT on PROD_DB |
-| 5 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | DEV_DB | SUCCESS | Caller has UPDATE on DEV_DB |
-| 6 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | PROD_DB | FAIL | Caller has NO access to PROD_DB |
-| 7 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | DEV_DB | SUCCESS | Owner (TEST_ROLE) has UPDATE on DEV_DB |
-| 8 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | PROD_DB | **FAIL** ✓ | Owner (TEST_ROLE) only has SELECT on PROD_DB |
+| 1 | TEST_ROLE | Caller Rights | DEV_DB | SUCCESS | Caller has UPDATE on DEV_DB |
+| 2 | TEST_ROLE | Caller Rights | PROD_DB | FAIL | Caller only has SELECT on PROD_DB |
+| 3 | TEST_ROLE | Owner Rights | DEV_DB | SUCCESS | Owner (TEST_ROLE) has UPDATE on DEV_DB |
+| 4 | TEST_ROLE | Owner Rights | PROD_DB | **FAIL** ✓ | Owner (TEST_ROLE) only has SELECT on PROD_DB |
+| 5 | TEST_ROLE_DEV_ONLY | Caller Rights | DEV_DB | SUCCESS | Caller has UPDATE on DEV_DB |
+| 6 | TEST_ROLE_DEV_ONLY | Caller Rights | PROD_DB | FAIL | Caller has NO access to PROD_DB |
+| 7 | TEST_ROLE_DEV_ONLY | Owner Rights | DEV_DB | SUCCESS | Owner (TEST_ROLE) has UPDATE on DEV_DB |
+| 8 | TEST_ROLE_DEV_ONLY | Owner Rights | PROD_DB | **FAIL** ✓ | Owner (TEST_ROLE) only has SELECT on PROD_DB |
 
 **✓ Security Success:** Tests 4 and 8 correctly FAIL because the procedure owner (TEST_ROLE) lacks UPDATE privileges on PROD_DB. **No privilege escalation occurs.**
 
@@ -205,14 +205,14 @@ Tests executed via `snow sql -f testing.sql`
 
 | Test # | Role | Procedure | Target | Expected | Actual | Match |
 |--------|------|-----------|--------|----------|--------|-------|
-| 1 | TEST_ROLE | Caller Rights V2 | DEV_DB | SUCCESS | `SUCCESS: Updated ID 1 in DEV_DB.PUBLIC.TEST_TABLE to value 111.11 (Caller Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 2 | TEST_ROLE | Caller Rights V2 | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Caller Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 3 | TEST_ROLE | Owner Rights V2 | DEV_DB | SUCCESS | `SUCCESS: Updated ID 1 in DEV_DB.PUBLIC.TEST_TABLE to value 333.33 (Owner Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 4 | TEST_ROLE | Owner Rights V2 | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Owner Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 5 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | DEV_DB | SUCCESS | `SUCCESS: Updated ID 2 in DEV_DB.PUBLIC.TEST_TABLE to value 555.55 (Caller Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 6 | TEST_ROLE_DEV_ONLY | Caller Rights V2 | PROD_DB | FAIL | `ERROR: Database 'PROD_DB' does not exist or not authorized. (Caller Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 7 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | DEV_DB | SUCCESS | `SUCCESS: Updated ID 2 in DEV_DB.PUBLIC.TEST_TABLE to value 777.77 (Owner Rights V2 - owner: TEST_ROLE)` | ✓ |
-| 8 | TEST_ROLE_DEV_ONLY | Owner Rights V2 | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Owner Rights V2 - owner: TEST_ROLE)` | ✓ |
+| 1 | TEST_ROLE | Caller Rights | DEV_DB | SUCCESS | `SUCCESS: Updated ID 1 in DEV_DB.PUBLIC.TEST_TABLE to value 111.11 (Caller Rights - owner: TEST_ROLE)` | ✓ |
+| 2 | TEST_ROLE | Caller Rights | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Caller Rights - owner: TEST_ROLE)` | ✓ |
+| 3 | TEST_ROLE | Owner Rights | DEV_DB | SUCCESS | `SUCCESS: Updated ID 1 in DEV_DB.PUBLIC.TEST_TABLE to value 333.33 (Owner Rights - owner: TEST_ROLE)` | ✓ |
+| 4 | TEST_ROLE | Owner Rights | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Owner Rights - owner: TEST_ROLE)` | ✓ |
+| 5 | TEST_ROLE_DEV_ONLY | Caller Rights | DEV_DB | SUCCESS | `SUCCESS: Updated ID 2 in DEV_DB.PUBLIC.TEST_TABLE to value 555.55 (Caller Rights - owner: TEST_ROLE)` | ✓ |
+| 6 | TEST_ROLE_DEV_ONLY | Caller Rights | PROD_DB | FAIL | `ERROR: Database 'PROD_DB' does not exist or not authorized. (Caller Rights - owner: TEST_ROLE)` | ✓ |
+| 7 | TEST_ROLE_DEV_ONLY | Owner Rights | DEV_DB | SUCCESS | `SUCCESS: Updated ID 2 in DEV_DB.PUBLIC.TEST_TABLE to value 777.77 (Owner Rights - owner: TEST_ROLE)` | ✓ |
+| 8 | TEST_ROLE_DEV_ONLY | Owner Rights | PROD_DB | FAIL | `ERROR: SQL access control error: Insufficient privileges to operate on table 'TEST_TABLE'. (Owner Rights - owner: TEST_ROLE)` | ✓ |
 
 ### Agent Execution Results
 
@@ -326,7 +326,7 @@ Otherwise, inherited privileges from other roles can mask permission issues.
 SELECT * FROM DEV_DB.PUBLIC.TEST_TABLE ORDER BY ID;
 SELECT * FROM PROD_DB.PUBLIC.TEST_TABLE ORDER BY ID;
 
--- Check procedure ownership (should show TEST_ROLE for V2 procedures)
+-- Check procedure ownership (should show TEST_ROLE)
 SELECT PROCEDURE_NAME, PROCEDURE_OWNER 
 FROM DEV_DB.INFORMATION_SCHEMA.PROCEDURES;
 
